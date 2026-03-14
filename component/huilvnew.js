@@ -279,7 +279,7 @@ export default async function (ctx) {
     },
     {
       type: "text",
-      text: "───────────────────────────────────",
+      text: "──────────────────────────────────────",
       font: { size: 8 },
       textColor: { light: COLORS.sep.light, dark: COLORS.sep.dark },
       padding: [8, 0, 8, 0]
