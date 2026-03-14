@@ -13,4 +13,4 @@ https://raw.githubusercontent.com/hikling/egern/refs/heads/main/component/wanglu
 https://raw.githubusercontent.com/hikling/egern/refs/heads/main/component/wannianli.js
 
 汇率.js
-https://raw.githubusercontent.com/hikling/egern/refs/heads/main/component/huilv.js
+https://raw.githubusercontent.com/hikling/egern/refs/heads/main/component/huilvnew.js
