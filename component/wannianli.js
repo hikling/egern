@@ -1,6 +1,6 @@
 /**
- * 黄历看板 - 质感渐变配色版（可一键复制）
- * 说明：仅更换背景渐变配色为沉稳有质感方案，其余逻辑完全保留
+ * 黄历看板 - 质感微蓝深色 / 浅色 双主题版（可一键复制）
+ * 修改：深色背景微加深蓝 (#0b1620)，其余保持不变
  */
 
 const LUNAR_INFO = [
@@ -179,41 +179,98 @@ export default async function(ctx){
   const yiFinal = Array.from(yiSet).slice(0,6);
   const jiFinal = Array.from(jiSet).slice(0,6);
 
-  // ===== 返回 UI（结构保持你原样） =====
+  // helper：把数组每行最多 3 个（返回带换行的字符串）
+  function blockText(arr, perLine=3) {
+    if (!arr || arr.length===0) return "—";
+    const lines = [];
+    for (let i=0;i<arr.length;i+=perLine) {
+      lines.push(arr.slice(i,i+perLine).join('　')); // 全角空格分隔
+    }
+    return lines.join('\n');
+  }
+  const yiBlock = blockText(yiFinal, 3);
+  const jiBlock = blockText(jiFinal, 3);
+
+  // ===== 主题颜色（浅色 / 深色 对象） =====
+  const BG = { light: "#FFFFFF", dark: "#0b1620" }; // 浅：白；深：微蓝黑（更带一点深蓝）
+  const COLORS = {
+    topDate:    { light: "#0F172A", dark: "#FFD977" }, // 浅色：深蓝；深色：金色
+    topSub:     { light: "#6B7280", dark: "#FFE7A3" },
+    mainYellow: { light: "#92400E", dark: "#FDE047" }, // 月日主色
+    subText:    { light: "#374151", dark: "#FFFFFFCC" },
+    // 宜/忌 配色（浅/深）
+    yiText:     { light: "#5B3B1F", dark: "#FFF8E1" },
+    jiText:     { light: "#7F1D1D", dark: "#FFEFEF" },
+    yiBg:       { light: "#FFF8E6", dark: "#2E2412" }, // 深色使用深金底
+    yiBorder:   { light: "#F5DEB3", dark: "#5F4718" },
+    jiBg:       { light: "#FFF5F5", dark: "#3A0F0F" }, // 深色使用暗红底
+    jiBorder:   { light: "#FBCACA", dark: "#5A1A1A" }
+  };
+
+  // ===== 返回 UI（胶囊圆角保持 16） =====
   return {
     type: "widget",
     padding: [16, 12, 16, 12],
-    backgroundGradient: {
-      type: "linear",
-      // 质感渐变：深蓝墨石 -> 温润灰蓝 -> 深炭黑
-      colors: ["#061726", "#163244", "#0b0f12"],
-      stops: [0, 0.6, 1]
-    },
+    backgroundColor: { light: BG.light, dark: BG.dark },
+
     children: [{
       type: "stack", direction: "column", flex: 1,
       children: [
         // 顶部：两端（左上显示星期）
         { type: "stack", direction: "row", alignItems: "center", children: [
-          { type: "text", text: `${y}年${m}月${d}日 星期${WEEK[now.getDay()]}`, font: { size: 10, weight: "bold" }, textColor: "#FFFFFFEE" },
+          { 
+            type: "text", 
+            text: `${y}年${m}月${d}日 星期${WEEK[now.getDay()]}`, 
+            font: { size: 10, weight: "bold" }, 
+            textColor: { light: COLORS.topDate.light, dark: COLORS.topDate.dark } 
+          },
           { type: "spacer" },
-          { type: "text", text: `${chongText} | ${"⭐".repeat((index%3)+3)}`, font: { size: 9 }, textColor: "#FDE047CC" }
+          { 
+            type: "text", 
+            text: `${chongText} | ${"⭐".repeat((index%3)+3)}`, 
+            font: { size: 9 }, 
+            textColor: { light: COLORS.topSub.light, dark: COLORS.topSub.dark } 
+          }
         ]},
+
         // 中间：核心居中
         { type: "stack", flex: 1, direction: "column", justifyContent: "center", alignItems: "center", children: [
-          { type: "text", text: `${(isL?"闰":"")+MON_S[lM-1]}月${lDStr}`, font: { size: 26, weight: "bold" }, textColor: "#FDE047" },
-          { type: "text", text: `${yGZ}年 · ${mGZ}月 · ${dGZ}日`, font: { size: 13, weight: "medium" }, textColor: "#FFFFFFCC", padding: [2,0,0,0] }
+          { 
+            type: "text", 
+            text: `${(isL?"闰":"")+MON_S[lM-1]}月${lDStr}`, 
+            font: { size: 26, weight: "bold" }, 
+            textColor: { light: COLORS.mainYellow.light, dark: COLORS.mainYellow.dark }, 
+            textAlign: "center" 
+          },
+          { 
+            type: "text", 
+            text: `${yGZ}年 · ${mGZ}月 · ${dGZ}日`, 
+            font: { size: 13, weight: "medium" }, 
+            textColor: { light: COLORS.subText.light, dark: COLORS.subText.dark }, 
+            padding: [2,0,0,0] 
+          }
         ]},
-        // 底部：宜忌胶囊（保持原样显示）
+
+        // 底部：宜忌胶囊（把“宜/忌”标签放到左边，颜色为主题对象）
         { type: "stack", direction: "row", gap: 8, children: [
-          { type: "stack", direction: "row", flex: 1, padding: 8, backgroundColor: "#22D3EE10", borderRadius: 12, borderWidth: 0.5, borderColor: "#22D3EE33", children: [
-            { type: "text", text: "宜", font: { size: 10, weight: "black" }, textColor: "#22D3EE" },
-            { type: "spacer", width: 6 },
-            { type: "text", text: yiFinal.slice(0,3).join(' ') + '\n' + yiFinal.slice(3,6).join(' '), font: { size: 9, lineSpacing: 4 }, textColor: "#FFFFFFEE", flex: 1 }
+          // 宜
+          { type: "stack", direction: "row", flex: 1, padding: 8, backgroundColor: { light: COLORS.yiBg.light, dark: COLORS.yiBg.dark }, cornerRadius: 16, borderRadius: 16, borderWidth: 0.5, borderColor: { light: COLORS.yiBorder.light, dark: COLORS.yiBorder.dark }, alignItems: "center", children: [
+              // 左侧 label 容器（固定宽度）
+              { type: "stack", width: 28, alignItems: "center", children: [
+                { type: "text", text: "宜", font: { size: 16, weight: "bold" }, textColor: { light: COLORS.yiText.light, dark: COLORS.yiText.dark } }
+              ]},
+              { type: "spacer", width: 6 },
+              // 内容（右侧，多行） —— 字号 10
+              { type: "text", text: yiFinal.slice(0,3).join(' ') + '\n' + yiFinal.slice(3,6).join(' '), font: { size: 10, lineSpacing: 4, weight: "medium" }, textColor: { light: COLORS.yiText.light, dark: COLORS.yiText.dark }, flex: 1 }
           ]},
-          { type: "stack", direction: "row", flex: 1, padding: 8, backgroundColor: "#F8717110", borderRadius: 12, borderWidth: 0.5, borderColor: "#F8717133", children: [
-            { type: "text", text: "忌", font: { size: 10, weight: "black" }, textColor: "#F87171" },
-            { type: "spacer", width: 6 },
-            { type: "text", text: jiFinal.slice(0,3).join(' ') + '\n' + jiFinal.slice(3,6).join(' '), font: { size: 9, lineSpacing: 4 }, textColor: "#FFFFFFBB", flex: 1 }
+          // 忌
+          { type: "stack", direction: "row", flex: 1, padding: 8, backgroundColor: { light: COLORS.jiBg.light, dark: COLORS.jiBg.dark }, cornerRadius: 16, borderRadius: 16, borderWidth: 0.5, borderColor: { light: COLORS.jiBorder.light, dark: COLORS.jiBorder.dark }, alignItems: "center", children: [
+              { type: "stack", width: 28, alignItems: "center", children: [
+                { type: "text", text: "忌", font: { size: 16, weight: "bold" }, textColor: { light: COLORS.jiText.light, dark: COLORS.jiText.dark } }
+              ]},
+              { type: "spacer", width: 6 },
+              // 内容（右侧，多行） —— 字号 10
+              { type: "text", text: jiFinal.slice(0,3).join(' ') + '\n' + jiFinal.slice(3,6).join(' '), font: { size: 10, lineSpacing: 4, weight: "medium" }, textColor: { light: COLORS.jiText.light, dark: COLORS.jiText.dark }, flex: 1 }
           ]}
         ]}
       ]
