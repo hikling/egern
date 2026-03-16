@@ -1,147 +1,165 @@
 /**
- * 📌 网络·代理·IP纯净度 (颜色对齐汇率插件版)
- * ✨ 变更：浅色模式全面同步汇率插件配色，深色保持 #0E1424
+ * 黄历看板 - 视觉对齐版
+ * ✨ 逻辑：完全保留原代码算法与布局
+ * ✨ 变更：颜色配置同步为汇率及网络信息插件风格 (深色 #0E1424 / 浅色 #FFFFFF)
  */
-export default async function(ctx) {
-  // --- 1. 颜色配置对象 (完全同步汇率插件配色风格) ---
-  const BG = { light: "#FFFFFF", dark: "#0E1424" };
-  const COLORS = {
-    title:  { light: "#0f172a", dark: "#D1D5DB" }, // 标题深蓝灰
-    sub:    { light: "#6b7280", dark: "#A2A2B5" }, // 标签灰 (等同汇率 time 颜色)
-    main:   { light: "#374151", dark: "#FFFFFF" }, // 主体字 (等同汇率 label 颜色)
-    accent: { light: "#92400E", dark: "#FDE047" }, // 强调色 (等同汇率 main 颜色)
-    green:  { light: "#059669", dark: "#32D74B" }, // 成功绿
-    proxy:  { light: "#7c3aed", dark: "#9945FF" }, // 代理紫
-    node:   { light: "#dc2626", dark: "#FF3B30" }, // 落地红
-    warn:   { light: "#d97706", dark: "#FFCC00" }  // 警告黄
-  };
 
-  const fmtISP = (isp) => {
-    if (!isp) return "未知";
-    const s = String(isp).toLowerCase();
-    if (/移动|mobile|cmcc/i.test(s)) return "中国移动";
-    if (/电信|telecom|chinanet/i.test(s)) return "中国电信";
-    if (/联通|unicom/i.test(s)) return "中国联通";
-    if (/广电|broadcast|cbn/i.test(s)) return "中国广电";
-    return String(isp); 
-  };
+const LUNAR_INFO = [
+0x04bd8,0x04ae0,0x0a570,0x054d5,0x0d260,0x0d950,0x16554,0x056a0,0x09ad0,0x055d2,
+0x04ae0,0x0a5b6,0x0a4d0,0x0d250,0x1d255,0x0b540,0x0d6a0,0x0ada2,0x095b0,0x14977,
+0x04970,0x0a4b0,0x0b4b5,0x06a50,0x06d40,0x1ab54,0x02b60,0x09570,0x052f2,0x04970,
+0x06566,0x0d4a0,0x0ea50,0x06e95,0x05ad0,0x02b60,0x186e3,0x092e0,0x1c8d7,0x0c950,
+0x0d4a0,0x1d8a6,0x0b550,0x056a0,0x1a5b4,0x025d0,0x092d0,0x0d2b2,0x0a950,0x0b557,
+0x06ca0,0x0b550,0x15355,0x04da0,0x0a5b0,0x14573,0x052b0,0x0a9a8,0x0e950,0x06aa0,
+0x0aea6,0x0ab50,0x04b60,0x0aae4,0x0a570,0x05260,0x0f263,0x0d950,0x05b57,0x056a0,
+0x096d0,0x04dd5,0x04ad0,0x0a4d0,0x0d4d4,0x0d250,0x0d558,0x0b540,0x0b6a0,0x195a6,
+0x095b0,0x049b0,0x0a974,0x0a4b0,0x0b27a,0x06a50,0x06d40,0x0af46,0x0ab60,0x09570,
+0x04af5,0x04970,0x064b0,0x074a3,0x0ea50,0x06b58,0x05ac0,0x0ab60,0x096d5,0x092e0,
+0x0c960,0x0d954,0x0d4a0,0x0da50,0x07552,0x056a0,0x0abb7,0x025d0,0x092d0,0x0cab5,
+0x0a950,0x0b4a0,0x0baa4,0x0ad50,0x055d9,0x04ba0,0x0a5b0,0x15176,0x052b0,0x0a930,
+0x07954,0x06aa0,0x0ad50,0x05b52,0x04b60,0x0a6e6,0x0a4e0,0x0d260,0x0ea65,0x0d530,
+0x05aa0,0x076a3,0x096d0,0x04afb,0x04ad0,0x0a4d0,0x1d0b6,0x0d250,0x0d520,0x0dd45,
+0x0b5a0,0x056d0,0x055b2,0x049b0,0x0a577,0x0a4b0,0x0aa50,0x1b255,0x06d20,0x0ada0,
+0x14b63,0x09370,0x049f8,0x04970,0x064b0,0x168a6,0x0ea50,0x06b20,0x1a6c4,0x0aae0,
+0x092e0,0x0d2e3,0x0c960,0x0d557,0x0d4a0,0x0da50,0x05d55,0x056a0,0x0a6d0,0x055d4,
+0x052d0,0x0a9b8,0x0a950,0x0b4a0,0x0b6a6,0x0ad50,0x055a0,0x0aba4,0x0a5b0,0x052b0,
+0x0b273,0x06930,0x07337,0x06aa0,0x0ad50,0x14b55,0x04b60,0x0a570,0x054e4,0x0d160,
+0x0e968,0x0d520,0x0daa0,0x16aa6,0x056d0,0x04ae0,0x0a9d4,0x0a2d0,0x0d150,0x0f252,
+0x0d520
+];
 
-  function computeQuality(ms) {
-    if (ms <= 0) return { label: "测速中", color: { light: "#9ca3af", dark: "#BBBBBB" }, icon: "clock" };
-    if (ms < 60) return { label: "优秀", color: { light: "#059669", dark: "#34D399" }, icon: "star.fill" };
-    if (ms < 150) return { label: "良好", color: { light: "#d97706", dark: "#FBBF24" }, icon: "hand.thumbsup.fill" };
-    if (ms < 300) return { label: "较差", color: { light: "#dc2626", dark: "#F87171" }, icon: "exclamationmark.triangle.fill" };
-    return { label: "极差", color: { light: "#b91c1c", dark: "#EF4444" }, icon: "xmark.octagon.fill" };
+const GAN="甲乙丙丁戊己庚辛壬癸";
+const ZHI="子丑寅卯辰巳午未申酉戌亥";
+const MON_S=["正","二","三","四","五","六","七","八","九","十","冬","腊"];
+const CHONG=["马","羊","猴","鸡","狗","猪","鼠","牛","虎","兔","龙","蛇"];
+const SHA=["南","东","北","西","南","东","北","西","南","东","北","西"];
+const BUILD=["建","除","满","平","定","执","破","危","成","收","开","闭"];
+
+const BUILD_YI={
+  建:["出行","上任","会友"], 除:["沐浴","扫舍","解除"], 满:["祈福","祭祀","嫁娶"],
+  平:["祭祀","修饰"], 定:["嫁娶","安床","交易"], 执:["祈福","祭祀"],
+  破:["破屋","求医"], 危:["安床","交易"], 成:["嫁娶","开市","入宅"],
+  收:["纳财","捕捉"], 开:["开市","交易","出行"], 闭:["安葬","修墓"]
+};
+
+const BUILD_JI={
+  建:["动土","安葬"], 除:["嫁娶","入宅"], 满:["安葬","破土"],
+  平:["嫁娶","开市"], 定:["诉讼"], 执:["开市","安葬"],
+  破:["嫁娶","开市"], 危:["登高","行船"], 成:["诉讼"],
+  收:["安葬"], 开:["安葬"], 闭:["嫁娶","出行"]
+};
+
+function toJDN(y,m,d){
+  let a=Math.floor((14-m)/12);
+  let y2=y+4800-a;
+  let m2=m+12*a-3;
+  return d + Math.floor((153*m2+2)/5) + 365*y2 + Math.floor(y2/4) - Math.floor(y2/100) + Math.floor(y2/400) - 32045;
+}
+
+export default async function(ctx){
+  const now=new Date();
+  const y=now.getFullYear();
+  const m=now.getMonth()+1;
+  const d=now.getDate();
+  const WEEK = ["日","一","二","三","四","五","六"];
+
+  // 农历计算逻辑 (保持原样)
+  let offset=(Date.UTC(y,m-1,d)-Date.UTC(1900,0,31))/86400000;
+  let i,temp,lY,lM,lD,isL=false;
+  for(i=1900;i<2101&&offset>0;i++){
+    temp=348;
+    for(let j=0x8000;j>0x8;j>>=1) if(LUNAR_INFO[i-1900]&j) temp++;
+    if(LUNAR_INFO[i-1900]&0xf) temp+=(LUNAR_INFO[i-1900]&0x10000)?30:29;
+    offset-=temp;
   }
+  if(offset<0){offset+=temp;i--;}
+  lY=i;
+  const leap=LUNAR_INFO[lY-1900]&0xf;
+  for(i=1;i<13&&offset>0;i++){
+    if(leap>0&&i===leap+1&&!isL){ i--; isL=true; temp=(LUNAR_INFO[lY-1900]&0x10000)?30:29; }
+    else { temp=(LUNAR_INFO[lY-1900]&(0x10000>>i))?30:29; }
+    if(isL&&i===leap+1) isL=false;
+    offset-=temp;
+    lM=i;
+  }
+  if(offset<0){offset+=temp;i--;}
+  lD=Math.floor(offset)+1;
+  const lDStr = lD===10?"初十":lD===20?"二十":lD===30?"三十":["初","十","廿","卅"][Math.floor(lD/10)]+["","一","二","三","四","五","六","七","八","九","十"][lD%10];
+  const yIdx = (m>2 || (m===2 && d>=4)) ? (y-4) : (y-5);
+  const yGZ = GAN[yIdx%10] + ZHI[yIdx%12];
+  const jdn = toJDN(y,m,d);
+  const base = toJDN(1900,1,31);
+  const index = ((jdn - base + 40) % 60 + 60) % 60;
+  const dayStem = index % 10;
+  const dayBranch = index % 12;
+  const dGZ = GAN[dayStem] + ZHI[dayBranch];
+  const mGZ = GAN[(yIdx*2 + m) % 10] + ZHI[(m+1) % 12];
+  const chongIndex = dayBranch;
+  const chongText = `冲${CHONG[chongIndex]}煞${SHA[chongIndex]}`;
+  const buildIndex = (dayBranch - lM + 12) % 12;
+  const build = BUILD[buildIndex];
 
-  // --- 2. 数据获取逻辑 (保持不动) ---
-  const d = ctx.device || {};
-  const isWifi = !!d.wifi?.ssid;
-  let netName = isWifi ? (d.wifi.ssid || "Wi-Fi") : (d.cellular?.radio || "蜂窝网络");
-  let netIcon = isWifi ? "wifi" : "antenna.radiowaves.left.and.right";
-  const localIp = d.ipv4?.address || "未知";
+  let yi = BUILD_YI[build] ? BUILD_YI[build].slice() : [];
+  let ji = BUILD_JI[build] ? BUILD_JI[build].slice() : [];
+  if (dayStem % 2 === 0) { if (!yi.includes("嫁娶")) yi.unshift("嫁娶"); if (!yi.includes("祈福")) yi.unshift("祈福"); }
+  else { if (!ji.includes("探病")) ji.unshift("探病"); }
+  if ([1,5,8,11].includes(lM)) { if (!yi.includes("祭祀")) yi.unshift("祭祀"); }
+  const yiSet = new Set();
+  for (const t of yi) { if (!ji.includes(t)) yiSet.add(t); if (yiSet.size >= 6) break; }
+  const jiSet = new Set();
+  for (const t of ji) { if (!yiSet.has(t)) jiSet.add(t); if (jiSet.size >= 6) break; }
+  const allYiPool = Object.values(BUILD_YI).flat();
+  const allJiPool = Object.values(BUILD_JI).flat();
+  for (const t of allYiPool) { if (yiSet.size >= 6) break; if (!yiSet.has(t) && !jiSet.has(t)) yiSet.add(t); }
+  for (const t of allJiPool) { if (jiSet.size >= 6) break; if (!jiSet.has(t) && !yiSet.has(t)) jiSet.add(t); }
+  const yiFinal = Array.from(yiSet).slice(0,6);
+  const jiFinal = Array.from(jiSet).slice(0,6);
 
-  let pubIp = "获取中...", pubLoc = "获取中...", pubIsp = "获取中...";
-  let nodeIp = "获取中...", nodeLoc = "获取中...", nativeText = "检测中...";
-  let asnInfo = "获取中...", riskTxt = "获取中...", riskCol = COLORS.warn, riskIc = "clock";
-  let costTime = 0;
+  // ===== 颜色对齐逻辑 (汇率看板/网络信息同款) =====
+  const BG = { light: "#FFFFFF", dark: "#0E1424" }; 
+  const COLORS = {
+    topDate:    { light: "#0f172a", dark: "#D1D5DB" }, // 汇率标题色
+    topSub:     { light: "#6b7280", dark: "#A2A2B5" }, // 汇率时间色
+    mainYellow: { light: "#92400E", dark: "#FDE047" }, // 汇率强调色
+    subText:    { light: "#374151", dark: "#FFFFFFCC" }, // 汇率标签色
+    // 宜/忌 容器
+    yiText:     { light: "#92400E", dark: "#FDE047" },
+    jiText:     { light: "#b91c1c", dark: "#FF3B30" },
+    yiBg:       { light: "#FFFBEB", dark: "#2E2412" }, 
+    yiBorder:   { light: "#FEF3C7", dark: "#5F4718" },
+    jiBg:       { light: "#FEF2F2", dark: "#3A0F0F" }, 
+    jiBorder:   { light: "#FEE2E2", dark: "#5A1A1A" }
+  };
 
-  try {
-    const [resIPIP, resIPPURE] = await Promise.allSettled([
-      ctx.http.get('https://myip.ipip.net/json', { timeout: 5000 }),
-      ctx.http.get('https://my.ippure.com/v1/info', { timeout: 5000 })
-    ]);
-
-    if (resIPIP.status === 'fulfilled') {
-      try {
-        const body = JSON.parse(await resIPIP.value.text());
-        if (body?.data) {
-          pubIp = body.data.ip || "获取失败";
-          const locArr = body.data.location || [];
-          pubLoc = `🇨🇳 ${locArr[1]||""} ${locArr[2]||""}`.trim();
-          pubIsp = fmtISP(locArr[4] || locArr[3]);
-        }
-      } catch(e) { pubIp = "解析失败"; }
-    }
-
-    if (resIPPURE.status === 'fulfilled') {
-      try {
-        const start = Date.now();
-        const body = JSON.parse(await resIPPURE.value.text());
-        costTime = Date.now() - start || 120;
-        nodeIp = body.ip || "获取失败";
-        nodeLoc = `${body.country || ''} ${body.city || ''}`.trim();
-        nativeText = body.isResidential === true ? "🏠 原生住宅" : "🏢 商业机房";
-        asnInfo = body.asn ? `${body.asn} ${body.org || ''}`.trim() : "未知";
-        
-        const risk = body.fraudScore;
-        if (risk !== null && risk !== undefined) {
-          if (risk >= 80) { riskTxt = `高危(${risk})`; riskCol = COLORS.node; riskIc = "xmark.shield.fill"; }
-          else if (risk >= 40) { riskTxt = `中危(${risk})`; riskCol = COLORS.warn; riskIc = "exclamationmark.shield.fill"; }
-          else { riskTxt = `纯净(${risk})`; riskCol = COLORS.green; riskIc = "checkmark.shield.fill"; }
-        }
-      } catch(e) { nodeIp = "解析失败"; }
-    }
-  } catch (err) {}
-
-  const q = computeQuality(costTime);
-
-  // 通用行组件
-  const Row = (ic, icCol, label, val, valCol) => ({
-    type: 'stack', direction: 'row', alignItems: 'center', gap: 5,
-    children: [
-      { type: 'image', src: `sf-symbol:${ic}`, color: icCol, width: 11, height: 11 },
-      { type: 'text', text: label, font: { size: 10 }, textColor: COLORS.sub },
-      { type: 'spacer' },
-      { type: 'text', text: String(val), font: { size: 10, weight: 'bold', family: 'Menlo' }, textColor: valCol, maxLines: 1 }
-    ]
-  });
-
-  // --- 3. 返回结构 (对齐汇率插件布局美感) ---
   return {
-    type: 'widget',
-    padding: [12, 12],
+    type: "widget",
+    padding: [16, 12, 16, 12],
     backgroundColor: BG,
-    refreshPolicy: { onNetworkChange: true, onEnter: true },
-    children: [
-      {
-        type: 'stack', direction: 'row', alignItems: 'center',
-        children: [
-          {
-            type: 'stack', direction: 'row', alignItems: 'center', gap: 5,
-            children: [
-              { type: 'image', src: `sf-symbol:${netIcon}`, color: COLORS.accent, width: 13, height: 13 },
-              { type: 'text', text: `${pubIsp} | ${netName}`, font: { size: 12, weight: 'bold' }, textColor: COLORS.title }
-            ]
-          },
-          { type: 'spacer' },
-          {
-            type: 'stack', direction: 'row', alignItems: 'center', gap: 4,
-            children: [
-              { type: 'image', src: `sf-symbol:${q.icon}`, width: 11, height: 11, color: q.color },
-              { type: 'text', text: `${q.label} ${costTime}ms`, font: { size: 11, weight: 'bold' }, textColor: q.color }
-            ]
-          }
-        ]
-      },
-      // 分割线 (参考汇率插件样式)
-      { type: 'spacer', length: 6 },
-      { type: 'stack', height: 1, backgroundColor: COLORS.sub, opacity: 0.1, children: [{type:'text', text:''}] },
-      { type: 'spacer', length: 6 },
-      // 内容行
-      {
-        type: 'stack', direction: 'column', gap: 4,
-        children: [
-          Row("iphone", COLORS.green, "内网地址", localIp, COLORS.green),
-          Row("globe", COLORS.proxy, "出口地址", pubIp, COLORS.main),
-          Row("mappin.and.ellipse", COLORS.proxy, "出口位置", pubLoc, COLORS.main),
-          Row("paperplane.fill", COLORS.node, "落地节点", nodeIp, COLORS.main),
-          Row("building.2.fill", COLORS.node, "线路属性", nativeText, COLORS.main),
-          Row("mappin.and.ellipse", COLORS.node, "落地位置", nodeLoc, COLORS.main),
-          Row("number.square.fill", COLORS.node, "ASN信息", asnInfo, COLORS.main),
-          Row(riskIc, riskCol, "欺诈风险", riskTxt, riskCol)
-        ]
-      }
-    ]
+    children: [{
+      type: "stack", direction: "column", flex: 1,
+      children: [
+        { type: "stack", direction: "row", alignItems: "center", children: [
+          { type: "text", text: `${y}年${m}月${d}日 星期${WEEK[now.getDay()]}`, font: { size: 10, weight: "bold" }, textColor: COLORS.topDate },
+          { type: "spacer" },
+          { type: "text", text: `${chongText} | ${"⭐".repeat((index%3)+3)}`, font: { size: 9 }, textColor: COLORS.topSub }
+        ]},
+        { type: "stack", flex: 1, direction: "column", justifyContent: "center", alignItems: "center", children: [
+          { type: "text", text: `${(isL?"闰":"")+MON_S[lM-1]}月${lDStr}`, font: { size: 26, weight: "bold" }, textColor: COLORS.mainYellow, textAlign: "center" },
+          { type: "text", text: `${yGZ}年 · ${mGZ}月 · ${dGZ}日`, font: { size: 13, weight: "medium" }, textColor: COLORS.subText, padding: [2,0,0,0] }
+        ]},
+        { type: "stack", direction: "row", gap: 8, children: [
+          { type: "stack", direction: "row", flex: 1, padding: 8, backgroundColor: COLORS.yiBg, cornerRadius: 16, borderRadius: 16, borderWidth: 0.5, borderColor: COLORS.yiBorder, alignItems: "center", children: [
+              { type: "stack", width: 28, alignItems: "center", children: [{ type: "text", text: "宜", font: { size: 16, weight: "bold" }, textColor: COLORS.yiText }] },
+              { type: "spacer", width: 6 },
+              { type: "text", text: yiFinal.slice(0,3).join(' ') + '\n' + yiFinal.slice(3,6).join(' '), font: { size: 10, lineSpacing: 4, weight: "medium" }, textColor: COLORS.yiText, flex: 1 }
+          ]},
+          { type: "stack", direction: "row", flex: 1, padding: 8, backgroundColor: COLORS.jiBg, cornerRadius: 16, borderRadius: 16, borderWidth: 0.5, borderColor: COLORS.jiBorder, alignItems: "center", children: [
+              { type: "stack", width: 28, alignItems: "center", children: [{ type: "text", text: "忌", font: { size: 16, weight: "bold" }, textColor: COLORS.jiText }] },
+              { type: "spacer", width: 6 },
+              { type: "text", text: jiFinal.slice(0,3).join(' ') + '\n' + jiFinal.slice(3,6).join(' '), font: { size: 10, lineSpacing: 4, weight: "medium" }, textColor: COLORS.jiText, flex: 1 }
+          ]}
+        ]}
+      ]
+    }]
   };
 }
