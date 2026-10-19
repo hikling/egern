@@ -99,6 +99,10 @@ function identity(params) {
   return 'capture:' + Object.keys(params).filter(key => !ignored.has(key)).sort().map(key => `${key}=${params[key]}`).join('&');
 }
 
+function hasStableIdentity(params) {
+  return Boolean(params.email || ['userId', 'userid', 'uid', 'accountId', 'accountid'].some(key => params[key]));
+}
+
 function emptyStore() { return { version: 2, accounts: {}, order: [] }; }
 
 function loadStore(ctx) {
@@ -129,13 +133,23 @@ function captureAccount(ctx) {
   const email = accountEmail(capture);
   const id = MD5(identity(params)).slice(0, 12);
   const store = loadStore(ctx);
-  const previousId = store.order.find(key => {
+  let previousId = store.order.find(key => {
     const existing = store.accounts[key];
     if (!existing?.capture) return key === id;
     return key === id ||
       (email && String(existing.email || accountEmail(existing.capture)).toLowerCase() === email.toLowerCase()) ||
       identity(paramsFor(existing.capture)) === identity(params);
   });
+  // 没有邮箱或用户 ID 的账号在重新安装后可能换设备 ID。
+  // 仅在恰好有一个同类失效账号时，用新抓包替换它，避免误增第三个账号。
+  if (!previousId && !hasStableIdentity(params)) {
+    const expired = store.order.filter(key => {
+      const existing = store.accounts[key];
+      return existing?.needsRecapture && existing.capture &&
+        !hasStableIdentity(paramsFor(existing.capture));
+    });
+    if (expired.length === 1) previousId = expired[0];
+  }
   const previous = previousId ? store.accounts[previousId] : null;
   const position = previousId ? store.order.indexOf(previousId) : store.order.length;
   if (previousId && previousId !== id) delete store.accounts[previousId];
@@ -144,7 +158,8 @@ function captureAccount(ctx) {
   store.accounts[id] = {
     id, alias, email, capture,
     createdAt: previous?.createdAt || Date.now(),
-    updatedAt: Date.now()
+    updatedAt: Date.now(),
+    needsRecapture: false
   };
   saveStore(ctx, store);
   ctx.notify({ title: previous ? '🔄 PingMe 账号已更新' : '✅ PingMe 账号已入库', body: `${alias}${email ? ` (${email})` : ''}\n当前共 ${store.order.length} 个账号` });
@@ -194,6 +209,7 @@ async function runAccount(ctx, account, index, total, signingKey) {
   const videoId = randomVideoId ? fakeDeviceId() : null;
   let expired = false;
   let balance = null;
+  let authenticated = false;
 
   async function call(path, deviceId) {
     const data = await fetchApi(ctx, path, capture, headers, deviceId, signingKey);
@@ -204,6 +220,7 @@ async function runAccount(ctx, account, index, total, signingKey) {
   try {
     const query = await call('queryBalanceAndBonus');
     if (query.retcode === 0) {
+      authenticated = true;
       balance = Number(query.result?.balance);
       lines.push(`💰 余额：${query.result?.balance} Coins`);
     } else lines.push(`⚠️ 查询：${replyText(query)}`);
@@ -241,11 +258,11 @@ async function runAccount(ctx, account, index, total, signingKey) {
   } catch (error) {
     lines.push(`❌ 请求失败：${String(error)}`);
   }
-  return { lines, expired: false };
+  return { lines, expired: false, authenticated };
 }
 
 function expiredResult(lines) {
-  lines.push('🔑 登录状态已失效：请在 PingMe App 重新登录此账号，打开余额页重新抓取；本次已跳过视频任务。');
+  lines.push('🔑 登录状态已失效：请按模块说明重新抓取此账号；切换账号时不要在 App 内点“退出登录”。本次已跳过视频任务。');
   return { lines, expired: true };
 }
 
@@ -256,7 +273,8 @@ async function runAll(ctx) {
     return;
   }
   const store = loadStore(ctx);
-  const accounts = store.order.map(id => store.accounts[id]).filter(Boolean);
+  const ids = store.order.filter(id => store.accounts[id]);
+  const accounts = ids.map(id => store.accounts[id]);
   if (!accounts.length) {
     ctx.notify({ title: '⚠️ PingMe 未抓到账号', body: '请先在 PingMe App 打开余额页触发抓取。' });
     return;
@@ -267,6 +285,13 @@ async function runAll(ctx) {
     const result = await runAccount(ctx, accounts[i], i, accounts.length, signingKey);
     results.push(result.lines.join('\n'));
     if (result.expired) expiredCount++;
+    if (result.expired || result.authenticated) {
+      const latest = loadStore(ctx);
+      if (latest.accounts[ids[i]]) {
+        latest.accounts[ids[i]].needsRecapture = result.expired;
+        saveStore(ctx, latest);
+      }
+    }
     if (i < accounts.length - 1) await sleep(ACCOUNT_GAP);
   }
   const title = expiredCount ? `⚠️ PingMe 完成：${expiredCount}/${accounts.length} 个账号需重新登录` : `🎉 PingMe 全部完成（${accounts.length} 个账号）`;
