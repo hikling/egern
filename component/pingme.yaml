@@ -1,0 +1,64 @@
+name: PingMe自动化任务
+description: PingMe多账户签到和视频奖励
+author: 怎么肥事 & yaowuliu
+icon: https://raw.githubusercontent.com/axhani/icon/refs/heads/main/pingme&wetalk.png
+update_interval: 3600
+
+compat_arguments:
+  CRON_TASK: "0 */6 * * *"
+  CRON_TASK_TIMEOUT: 600
+
+compat_arguments_schema:
+  CRON_TASK:
+    name: "定时任务"
+    description: "默认每天 00:00、06:00、12:00、18:00"
+    default_value: "0 */6 * * *"
+
+  CRON_TASK_TIMEOUT:
+    name: "定时任务超时时间"
+    description: "多账户任务最多 600 秒"
+    default_value: 600
+
+env:
+  PINGME_CAPTURE: 'true'
+  PINGME_RANDOM_DEVICE_ID: 'true'
+
+env_schema:
+  PINGME_SIGNING_KEY:
+    name: "签名参数"
+    description: "仅在 Egern 本地填写；可从原版 PingMe 脚本的 SECRET 值复制，勿提交到公开仓库"
+  PINGME_CAPTURE:
+    name: "参数抓取"
+    description: "关闭后不再从 PingMe App 抓取或更新账号参数"
+    default_value: 'true'
+    options:
+      - 'true'
+      - 'false'
+  PINGME_RANDOM_DEVICE_ID:
+    name: "随机设备 ID"
+    description: "开启后每次运行为每个账号生成一个视频奖励专用设备 ID；签到仍使用原设备 ID"
+    default_value: 'true'
+    options:
+      - 'true'
+      - 'false'
+
+scriptings:
+  - http_request:
+      name: "账号抓取"
+      match: "^https://api\\.pingmeapp\\.net/app/queryBalanceAndBonus"
+      script_url: "https://raw.githubusercontent.com/hikling/egern/refs/heads/main/component/pingme.js"
+      timeout: 30
+      update_interval: 3600
+
+  - schedule:
+      name: "定时任务"
+      cron: "{{{CRON_TASK}}}"
+      script_url: "https://raw.githubusercontent.com/hikling/egern/refs/heads/main/component/pingme.js"
+      timeout: {{{CRON_TASK_TIMEOUT}}}
+      update_interval: 3600
+
+mitm:
+  hostnames:
+    includes:
+      - "api.pingmeapp.net"
+
